@@ -22,9 +22,10 @@ func (h Headers) Set(key, value string) {
 	h[key] = value
 }
 
-func (h Headers) Get(key string) string {
+func (h Headers) Get(key string) (value string, ok bool) {
 	key = strings.ToLower(key)
-	return h[key]
+	v, ok := h[key]
+	return v, ok
 }
 
 const crlf = "\r\n"
