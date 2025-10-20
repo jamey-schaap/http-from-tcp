@@ -4,7 +4,6 @@ import (
 	"http-from-tcp/internal/request"
 	"http-from-tcp/internal/response"
 	"http-from-tcp/internal/server"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -27,19 +26,10 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
-func handler(w io.Writer, req *request.Request) *server.HandlerError {
+func handler(w *response.Writer, req *request.Request) {
 	if req.RequestLine.RequestTarget == "/yourproblem" {
-		return &server.HandlerError{
-			StatusCode: response.StatusCodeBadRequest,
-			Message:    "Your problem is not my problem\n",
-		}
 	}
 	if req.RequestLine.RequestTarget == "/myproblem" {
-		return &server.HandlerError{
-			StatusCode: response.StatusCodeInternalServerError,
-			Message:    "Woopsie, my bad\n",
-		}
 	}
 	w.Write([]byte("All good, frfr\n"))
-	return nil
 }
