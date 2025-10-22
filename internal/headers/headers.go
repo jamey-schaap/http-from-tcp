@@ -33,6 +33,11 @@ func (h Headers) Get(key string) (value string, ok bool) {
 	return v, ok
 }
 
+func (h Headers) Remove(key string) {
+	key = strings.ToLower(key)
+	delete(h, key)
+}
+
 const crlf = "\r\n"
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
