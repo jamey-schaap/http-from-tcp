@@ -4,75 +4,56 @@ import (
 	"fmt"
 	"http-from-tcp/internal/headers"
 	"io"
-	"strings"
 )
 
-type writeState int
+type writerState int
 
 const (
-	writeStateStatusLine writeState = iota
-	writeStateHeaders
-	writeStateBody
+	writerStateStatusLine writerState = iota
+	writerStateHeaders
+	writerStateBody
 )
 
 type Writer struct {
-	io.Writer
-	writeState
+	writerState writerState
+	writer      io.Writer
 }
 
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		w,
-		writeStateStatusLine,
+		writerState: writerStateStatusLine,
+		writer:      w,
 	}
-}
-
-func getStatusLine(statusCode StatusCode) []byte {
-	reasonPhrase := ""
-	switch statusCode {
-	case StatusCodeSuccess:
-		reasonPhrase = "OK"
-	case StatusCodeBadRequest:
-		reasonPhrase = "Bad Request"
-	case StatusCodeInternalServerError:
-		reasonPhrase = "Internal Server Error"
-	}
-	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", statusCode, reasonPhrase))
 }
 
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
-	if w.writeState != writeStateStatusLine {
-		return fmt.Errorf("invalid write state, expected %d actual %d", writeStateStatusLine, w.writeState)
+	if w.writerState != writerStateStatusLine {
+		return fmt.Errorf("cannot write status line in state %d", w.writerState)
 	}
-
-	statusLine := getStatusLine(statusCode)
-	_, err := w.Write(statusLine)
-	w.writeState = writeStateHeaders
+	defer func() { w.writerState = writerStateHeaders }()
+	_, err := w.writer.Write(getStatusLine(statusCode))
 	return err
 }
 
-func (w *Writer) WriteHeaders(headers headers.Headers) error {
-	if w.writeState != writeStateHeaders {
-		return fmt.Errorf("invalid write state, expected %d actual %d", writeStateHeaders, w.writeState)
+func (w *Writer) WriteHeaders(h headers.Headers) error {
+	if w.writerState != writerStateHeaders {
+		return fmt.Errorf("cannot write headers in state %d", w.writerState)
 	}
-
-	var sb strings.Builder
-	for k, v := range headers {
-		sb.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	defer func() { w.writerState = writerStateBody }()
+	for k, v := range h {
+		_, err := w.writer.Write([]byte(fmt.Sprintf("%s: %s\r\n", k, v)))
+		if err != nil {
+			return err
+		}
 	}
-	sb.WriteString("\r\n")
-	_, err := w.Write([]byte(sb.String()))
-	w.writeState = writeStateBody
+	_, err := w.writer.Write([]byte("\r\n"))
 	return err
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {
-	if w.writeState != writeStateBody {
-		return 0, fmt.Errorf("invalid write state, expected %d actual %d", writeStateBody, w.writeState)
+	if w.writerState != writerStateBody {
+		return 0, fmt.Errorf("cannot write headers in state %d", w.writerState)
 	}
 
-	n, err := w.Write(p)
-	// TODO: How to keep the content-length header up-to-date
-
-	return n, err
+	return w.writer.Write(p)
 }
